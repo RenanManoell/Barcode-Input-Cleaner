@@ -1,0 +1,86 @@
+// ==UserScript==
+// @name         Barcode Input Cleaner
+// @namespace    http://tampermonkey.net/
+// @version      2.0
+// @description  Remove tudo após o primeiro espaço no input de código de barras ao pressionar Enter, antes que o script do site seja executado. Funciona continuamente, mesmo após múltiplas bipagens.
+// @author       Renan Manoel
+// @match        https://wms-premium-apps-07-stage.keu.logistics.corp/wms-premium-apps-07/*
+// @grant        none
+// ==/UserScript==
+
+(function () {
+    'use strict';
+
+    // Função para limpar o valor do input
+    function cleanBarcodeInput(input) {
+        let value = input.value.trim(); // Remove espaços extras no início e no fim
+
+        // Remove tudo após o primeiro espaço
+        if (value.includes(' ')) {
+            value = value.split(' ')[0]; // Pega apenas a parte antes do primeiro espaço
+        }
+
+        // Atualiza o valor no input
+        input.value = value;
+    }
+
+    // Função para configurar o listener no input
+    function setupInputListener(input) {
+        // Destacar o input com a cor verde
+        input.style.backgroundColor = 'lightgreen';
+
+        // Substituir o onkeydown original por uma nova função
+        input.onkeydown = function (event) {
+            if (event.keyCode === 13) { // Verifica se a tecla pressionada é o Enter
+                event.preventDefault(); // Impede o comportamento padrão do Enter
+
+                // Limpa o valor do input
+                cleanBarcodeInput(input);
+
+                // Chama a função scanBarcode() manualmente após a limpeza
+                setTimeout(() => {
+                    scanBarcode();
+                }, 0);
+            }
+        };
+    }
+
+    // Função para observar alterações no input
+    function observeInput() {
+        const input = document.getElementById('taskForm:barcode');
+
+        if (input && !input.hasAttribute('data-observed')) {
+            // Marcar o input como observado
+            input.setAttribute('data-observed', 'true');
+
+            // Configurar o listener no input
+            setupInputListener(input);
+
+            // Observar alterações no input (caso ele seja recriado ou modificado)
+            const observer = new MutationObserver(() => {
+                // Se o onkeydown foi alterado, reconfigurar o listener
+                if (!input.onkeydown || input.onkeydown.toString().indexOf('cleanBarcodeInput') === -1) {
+                    setupInputListener(input);
+                }
+            });
+
+            // Iniciar a observação no input
+            observer.observe(input, {
+                attributes: true, // Observar alterações nos atributos
+                attributeFilter: ['onkeydown'], // Observar apenas o atributo onkeydown
+            });
+        }
+    }
+
+    // Observar mudanças no DOM para detectar quando o input é recriado
+    const domObserver = new MutationObserver(() => observeInput());
+
+    // Iniciar a observação no body
+    domObserver.observe(document.body, {
+        childList: true, // Observar adição/remoção de elementos
+        subtree: true, // Observar em toda a árvore do DOM
+    });
+
+    // Verificação inicial para garantir que o script funcione ao carregar a página
+    observeInput();
+})();
